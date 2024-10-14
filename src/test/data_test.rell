@@ -1,0 +1,165 @@
+@test module;
+
+import main.{ poll, poll_option, vote, vote_count, user, add_user, create_poll, vote_on_poll_option, add_right_answer, get_poll_results, get_all_polls, get_poll_options };
+import lib.ft4.test.utils.{ ft_auth_operation_for };
+
+import lib.ft4.auth;
+import acc:lib.ft4.accounts;
+
+val alice = rell.test.pubkeys.alice;
+val bob = rell.test.pubkeys.bob;
+
+val aliceKeyPair = rell.test.keypairs.alice;
+val bobKeyPair = rell.test.keypairs.bob;
+
+// ADD USER - SUCCESS
+function test_add_user() {
+    rell.test.tx()
+        .op(add_user(bob))
+        .sign(bobKeyPair)
+        .run();
+
+    rell.test.tx()
+        .op(add_user(alice))
+        .sign(aliceKeyPair)
+        .run();    
+
+    assert_equals(user @ { } (@sum 1), 2);
+}
+
+// CREATE POLL - FAILURE - CANNOT IMPERSONATE USER
+function test_create_poll_failure_impersonate_user() {
+    val title = "Test Poll";
+    val options = ["Option 1", "Option 2", "Option 3"];
+    val poll_end = 86400;
+    val title_image = "http://example.com/image.jpg";
+
+    test_add_user();
+
+    val f1 = rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(create_poll(title, options, poll_end, title_image))
+        .sign(aliceKeyPair)
+        .run_must_fail();
+
+    assert_true(f1.message.contains("The auth descriptor signer did not sign the transaction."));
+}
+
+// CREATE POLL - FAILURE - USER DOES NOT EXIST TO CREATE POLL
+function test_create_poll_failure_user_doesnt_exist() {
+    val title = "Test Poll";
+    val options = ["Option 1", "Option 2", "Option 3"];
+    val poll_end = 86400;
+    val title_image = "http://example.com/image.jpg";
+
+     rell.test.tx()
+        .op(add_user(bob))
+        .sign(bobKeyPair)
+        .run();
+
+    val f1 = rell.test.tx()
+        .op(create_poll(title, options, poll_end, title_image))
+        .sign(aliceKeyPair)
+        .run_must_fail();
+
+    assert_true(f1.message.contains("Expected at least two operations"));
+}
+
+// CREATE POLL - FAILURE - NO OPTIONS PRESENT
+function test_create_poll_failure_no_options() {
+    val title = "Test Poll";
+    val options = list<text>();
+    val poll_end = 86400;
+    val title_image = "http://example.com/image.jpg";
+
+    test_add_user();
+
+    val f1 = rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(create_poll(title, options, poll_end, title_image))
+        .sign(bobKeyPair)
+        .run_must_fail();
+
+    assert_true(f1.message.contains("At least one option is required"));
+}
+
+// CREATE POLL - FAILURE - NO TITLE PRESENT
+function test_create_poll_failure_no_title() {
+    val title = "";
+    val options = list<text>();
+    val poll_end = 86400;
+    val title_image = "http://example.com/image.jpg";
+
+    test_add_user();
+
+    val f1 = rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(create_poll(title, options, poll_end, title_image))
+        .sign(bobKeyPair)
+        .run_must_fail();
+
+    assert_true(f1.message.contains("title cannot be empty"));
+}
+
+// CREATE POLL - SUCCESS
+function test_create_poll_success() {
+    val title = "Test Poll";
+    val options = ["First Creation Option1", "First Creation Option2"];
+    val poll_end = 86400;
+    val title_image = "http://example.com/image.jpg";
+
+    val title2 = "Test Poll2";
+    val options2 = ["Second Creation Option1", "Second Creation Option1"];
+    val poll_end2 = 86400;
+    val title_image2 = "http://example2.com/image.jpg";
+
+    test_add_user();
+    
+    rell.test.tx()
+        .op(ft_auth_operation_for(alice))
+        .op(create_poll(title, options, poll_end, title_image))
+        .sign(aliceKeyPair)
+        .run();
+
+    rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(create_poll(title2, options2, poll_end2, title_image2))
+        .sign(bobKeyPair)
+        .run();    
+    
+    val created_poll = get_all_polls();
+    
+    // TOTAL POLLS
+    assert_equals(poll @ { } (@sum 1), 2);
+
+    // VERIFYING ADDED POLLS
+    assert_equals(created_poll[0].id, 1);
+    assert_equals(created_poll[0].title, title);
+    assert_equals(created_poll[0].poll_end, poll_end);
+    assert_equals(created_poll[0].title_image, title_image);
+    assert_equals(created_poll[0].data.right_answer, 0);
+    assert_equals(created_poll[0].data.is_resolved, false);
+
+    assert_equals(created_poll[1].id, 2);
+    assert_equals(created_poll[1].title, title2);
+    assert_equals(created_poll[1].poll_end, poll_end2);
+    assert_equals(created_poll[1].title_image, title_image2);
+    assert_equals(created_poll[1].data.right_answer, 0);
+    assert_equals(created_poll[1].data.is_resolved, false);
+
+    // val poll_options = get_poll_options(2);
+    // print(poll_options);
+
+   // [
+    // (
+    // id=1,
+    // title=Test Poll,
+    // created_at=1577836800000,
+    // poll_end=86400,
+    // title_image=http://example.com/image.jpg,
+    // data=(creator=0x7b1dda0d03d062460c745b459779e1dee9845a5eec6341a81f91c081c5cc89c5,
+    // right_answer=0,
+    // is_resolved=false)
+    // )
+   // ]
+}

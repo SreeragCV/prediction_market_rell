@@ -1,0 +1,235 @@
+module;
+
+import lib.ft4.auth;
+import acc:lib.ft4.accounts;
+import lib.ft4.core.accounts.{ single_sig_auth_descriptor, create_account_with_auth };
+
+
+
+entity poll {
+	key id: integer;
+	creator: acc.account;
+	title: text;
+	poll_end: timestamp;
+	title_image: text;
+	created_at: timestamp;
+	mutable right_answer: integer;
+	mutable is_resolved: boolean;
+}
+
+entity bet {
+	key id: integer;
+	poll_id: integer;
+	option_id: integer;
+	bettor: acc.account;
+	amount: integer;
+	is_yes_bet: boolean;
+}
+
+entity bet_totals {
+	key poll_id: integer, option_id: integer;
+	mutable yes_total: integer;
+	mutable no_total: integer;
+}
+
+entity user {
+	key account: acc.account;
+	mutable balance: integer;
+}
+
+entity poll_option {
+	key id: integer;
+	poll_id: integer;
+	option_text: text;
+}
+
+entity vote {
+	key option_id: integer, voter: acc.account;
+	is_yes_vote: boolean;
+	poll_id: integer;
+}
+
+entity vote_count {
+	key option_id: integer;
+	mutable yes_votes: integer;
+	mutable no_votes: integer;
+	poll_id: integer;
+}
+
+// change title to title 
+
+
+@extend(auth.auth_handler)
+function () = auth.add_auth_handler(
+	flags = []
+);
+
+operation add_user(pubkey) {
+	val account = create_account_with_auth(single_sig_auth_descriptor(pubkey, set(["A", "T", "MySession"])));
+	create user ( account, balance = 0 );
+}
+
+operation create_poll(title: text, options: list<text>, poll_end: timestamp, title_image: text) {
+	require(title.size() > 0, "title cannot be empty");
+	require(options.size() > 0, "At least one option is required");
+	val account = auth.authenticate();
+
+	val new_poll_id = get_next_poll_id();
+	create poll (
+		id = new_poll_id,
+		creator = account,
+		title = title,
+		title_image = title_image,
+		poll_end = poll_end,
+		created_at = op_context.last_block_time,
+		right_answer = 0,
+		is_resolved = false
+	);
+
+	for (option in options) {
+		val new_option_id = get_next_option_id();
+		create poll_option ( id = new_option_id, poll_id = new_poll_id, option_text = option );
+		create vote_count ( option_id = new_option_id, yes_votes = 0, no_votes = 0, poll_id = new_poll_id );
+	}
+}
+
+operation vote_on_poll_option(option_id: integer, is_yes_vote: boolean) {
+	require(poll_option @? { .id == option_id } != null, "Poll option does not exist");
+
+	var poll_id = poll_option @ { .id == option_id }.poll_id;
+	val account = auth.authenticate();
+
+	val existing_vote = vote @? { .option_id == option_id, .voter == account, .poll_id == poll_id };
+
+	print(existing_vote);
+
+	require(
+		existing_vote == null,
+		"User has already voted on this option"
+	);
+
+	create vote ( option_id, account, is_yes_vote, poll_id = poll_option @ { .id == option_id }.poll_id );
+
+	if (is_yes_vote) {
+		update vote_count @? { .option_id == option_id } ( yes_votes += 1 );
+	} else {
+		update vote_count @? { .option_id == option_id } ( no_votes += 1 );
+	}
+}
+
+operation add_right_answer(poll_id: integer, right_answer_option_id: integer) {
+	val account = auth.authenticate();
+	val res_poll = poll @ { .id == poll_id };
+
+	require(res_poll.is_resolved == false, "Poll has already been resolved");
+
+	require(op_context.last_block_time < res_poll.poll_end, "Poll has not ended yet");
+	require(
+		poll_option @? {
+			.id == right_answer_option_id,
+			.poll_id == poll_id
+		} != null,
+		"Invalid option for this poll"
+	);
+
+	update poll @ { .id == poll_id } (
+		right_answer = right_answer_option_id,
+		is_resolved = true
+	);
+}
+
+query get_poll_results(poll_id: integer) {
+
+	return (
+		vote_count @* { .poll_id == poll_id } (
+			.yes_votes,
+			.no_votes
+		)
+	);
+}
+
+query get_all_polls() {
+	return poll @* { } (
+		.id,
+		.title,
+		.created_at,
+		.poll_end,
+		.title_image,
+		data = (
+			creator = .creator.id,
+			right_answer = .right_answer,
+			is_resolved = .is_resolved
+		)
+	);
+}
+
+query get_poll_options(poll_id: integer) {
+	return poll_option @* { .poll_id == poll_id } (
+		.id,
+		.option_text
+	);
+}
+
+function get_next_poll_id(): integer {
+	var id_to_return = 1;
+	val latest_poll = poll @* { } ( @sort_desc .id );
+	if (latest_poll.size() > 0) {
+
+		id_to_return = latest_poll[0] + 1;
+	}
+	return id_to_return;
+}
+
+function get_next_option_id(): integer {
+	var id_to_return = 1;
+
+	val latest_option = poll_option @* { } ( @sort_desc .id );
+	if (latest_option.size() > 0) {
+		id_to_return = latest_option[0] + 1;
+	}
+	return id_to_return;
+}
+
+function distribute_rewards(poll_id: integer, correct_option_id: integer) {
+    val total_pool = bet_totals @* { .poll_id == poll_id } ( 
+        @sum .yes_total + .no_total 
+    );
+
+    val winning_pool = bet_totals @? { .poll_id == poll_id, .option_id == correct_option_id } (
+        .yes_total
+    );
+
+    if (winning_pool == null) {
+        return;
+    }
+
+
+    val winning_bets = bet @* { .poll_id == poll_id, .option_id == correct_option_id, .is_yes_bet == true };
+
+    for (winning_bet in winning_bets) {
+        val payout = (winning_bet.amount / winning_pool) * total_pool.size();
+        update user @{ .account == winning_bet.bettor } (balance += payout);
+    }
+}
+
+// function distribute_rewards(poll_id: integer, correct_option_id: integer) {
+//     val total_pool = bet_totals @* { .poll_id == poll_id } ( 
+//         @sum .yes_total + .no_total 
+//     );
+
+//     val winning_pool = bet_totals @? { .poll_id == poll_id, .option_id == correct_option_id } (
+//         .yes_total
+//     );
+	
+// 	if (winning_pool == null) {
+// 		return;
+// 	}
+
+
+//     val winning_bets = bet @* { .poll_id == poll_id, .option_id == correct_option_id, .is_yes_bet == true };
+
+//     for (winning_bet in winning_bets) {
+//         val payout = (winning_bet.amount / winning_pool) * total_pool;
+//         update user @{ .account == winning_bet.bettor } (balance += payout);
+//     }
+// }
