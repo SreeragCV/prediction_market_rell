@@ -139,11 +139,11 @@ operation add_right_answer(poll_id: integer, right_answer_option_id: integer) {
 }
 
 query get_poll_results(poll_id: integer) {
-
 	return (
 		vote_count @* { .poll_id == poll_id } (
 			.yes_votes,
-			.no_votes
+			.no_votes,
+			.option_id
 		)
 	);
 }

@@ -163,3 +163,28 @@ function test_create_poll_success() {
     // )
    // ]
 }
+
+// ADD VOTE - SUCCESS
+function test_vote_on_poll_option() {
+    val title = "Test Poll";
+    val options = ["First Creation Option1", "First Creation Option2"];
+    val poll_end = 86400;
+    val title_image = "http://example.com/image.jpg";
+
+    val title2 = "Test Poll2";
+    val options2 = ["Second Creation Option1", "Second Creation Option1"];
+    val poll_end2 = 86400;
+    val title_image2 = "http://example2.com/image.jpg";
+
+    test_create_poll_success();
+    
+    rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(vote_on_poll_option(1, true))
+        .sign(bobKeyPair)
+        .run();
+
+    val poll_options = get_poll_options(1);
+    val get_vote_count = get_poll_results(1);
+    print(get_vote_count);
+}
