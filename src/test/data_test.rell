@@ -333,3 +333,66 @@ function test_get_all_polls_empty() {
     val polls = get_all_polls();
     assert_equals(polls.size(), 0);
 }
+
+// Test voting on all options of a poll
+function test_vote_all_options() {
+    test_add_user();
+    val poll_id = create_test_poll(alice, "Vote All Options Test", ["Option 1", "Option 2", "Option 3"], 86400);
+    
+    rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(vote_on_poll_option(1, true))
+        .sign(bobKeyPair)
+        .run();
+    
+    rell.test.tx()
+        .op(ft_auth_operation_for(alice))
+        .op(vote_on_poll_option(2, false))
+        .sign(aliceKeyPair)
+        .run();
+    
+    rell.test.tx()
+        .op(ft_auth_operation_for(alice))
+        .op(vote_on_poll_option(3, true))
+        .sign(aliceKeyPair)
+        .run();
+    
+    val results = get_poll_results(poll_id);
+    assert_equals(results.size(), 3);
+    assert_equals(results[0].yes_votes + results[1].yes_votes + results[2].yes_votes, 2);
+    assert_equals(results[0].no_votes + results[1].no_votes + results[2].no_votes, 1);
+}
+
+// Test adding right answer for non-existent poll
+function test_add_right_answer_non_existent_poll() {
+    test_add_user();
+    
+    val f1 = rell.test.tx()
+        .op(ft_auth_operation_for(alice))
+        .op(add_right_answer(999, 1))
+        .sign(aliceKeyPair)
+        .run_must_fail();
+    
+    assert_true(f1.message.contains("No records found"));
+}
+
+
+// Test creating a poll with no end time (ongoing poll)
+function test_create_ongoing_poll() {
+    test_add_user();
+    val poll_id = create_test_poll(alice, "Ongoing Poll Test", ["Option 1", "Option 2"], 0);
+    
+    val created_poll = poll @ { .id == poll_id };
+    assert_equals(created_poll.poll_end, 0);
+    
+    // Ensure voting is still possible
+    rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(vote_on_poll_option(1, true))
+        .sign(bobKeyPair)
+        .run();
+    
+    val results = get_poll_results(poll_id);
+    assert_equals(results[0].yes_votes, 1);
+}
+
