@@ -93,6 +93,7 @@ operation create_poll(title: text, options: list<text>, poll_end: timestamp, tit
 operation vote_on_poll_option(option_id: integer) {
     require(poll_option @? { .id == option_id } != null, "Poll option does not exist");
 
+
     var poll_id = poll_option @ { .id == option_id }.poll_id;
     val account = auth.authenticate();
 
