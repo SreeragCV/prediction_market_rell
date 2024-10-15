@@ -140,6 +140,7 @@ operation add_right_answer(poll_id: integer, right_answer_option_id: integer) {
         right_answer = right_answer_option_id,
         is_resolved = true
     );
+    distribute_rewards(poll_id, right_answer_option_id);
 }
 
 query get_poll_results(poll_id: integer) {
@@ -214,24 +215,3 @@ function distribute_rewards(poll_id: integer, correct_option_id: integer) {
         update user @ { .account == winning_bet.bettor } ( balance += payout );
     }
 }
-// function distribute_rewards(poll_id: integer, correct_option_id: integer) {
-//     val total_pool = bet_totals @* { .poll_id == poll_id } ( 
-//         @sum .yes_total + .no_total 
-//     );
-
-//     val winning_pool = bet_totals @? { .poll_id == poll_id, .option_id == correct_option_id } (
-//         .yes_total
-//     );
-	
-// 	if (winning_pool == null) {
-// 		return;
-// 	}
-
-
-//     val winning_bets = bet @* { .poll_id == poll_id, .option_id == correct_option_id, .is_yes_bet == true };
-
-//     for (winning_bet in winning_bets) {
-//         val payout = (winning_bet.amount / winning_pool) * total_pool;
-//         update user @{ .account == winning_bet.bettor } (balance += payout);
-//     }
-// }
