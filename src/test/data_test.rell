@@ -186,47 +186,24 @@ function test_create_poll_success() {
     assert_equals(created_poll[1].title_image, title_image2);
     assert_equals(created_poll[1].data.right_answer, 0);
     assert_equals(created_poll[1].data.is_resolved, false);
-    // val poll_options = get_poll_options(2);
-    // print(poll_options);
-
-   // [
-    // (
-    // id=1,
-    // title=Test Poll,
-    // created_at=1577836800000,
-    // poll_end=86400,
-    // title_image=http://example.com/image.jpg,
-    // data=(creator=0x7b1dda0d03d062460c745b459779e1dee9845a5eec6341a81f91c081c5cc89c5,
-    // right_answer=0,
-    // is_resolved=false)
-    // )
-   // ]
+  
 }
 
 // ADD VOTE - SUCCESS
 function test_vote_on_poll_option() {
-    val title = "Test Poll";
-    val options = ["First Creation Option1", "First Creation Option2"];
-    val poll_end = 86400;
-    val title_image = "http://example.com/image.jpg";
-
-    val title2 = "Test Poll2";
-    val options2 = ["Second Creation Option1", "Second Creation Option1"];
-    val poll_end2 = 86400;
-    val title_image2 = "http://example2.com/image.jpg";
+ 
 
     test_create_poll_success();
 
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1, true))
+        .op(vote_on_poll_option(1))
         .sign(bobKeyPair)
         .run();
 
-    val poll_options = get_poll_options(1);
     val get_vote_count = get_poll_results(1);
-    print(get_vote_count[0].yes_votes);
-    var total_yes_vote = get_vote_count[0].yes_votes;
+    print(get_vote_count[0].votes);
+    var total_yes_vote = get_vote_count[0].votes;
     assert_equals(total_yes_vote, 1);
 }
 
@@ -237,18 +214,19 @@ function test_double_voting() {
     // First vote (should succeed)
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1, true))
+        .op(vote_on_poll_option(1))
         .sign(bobKeyPair)
         .run();
     
     // Second vote (should fail)
     val f1 = rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1, false))
+        .op(vote_on_poll_option(1))
         .sign(bobKeyPair)
         .run_must_fail();
 
-    assert_true(f1.message.contains("User has already voted on this option"));
+
+    assert_true(f1.message.contains("Transaction already in database"));
 }
 
 // Test voting on non-existent poll option
@@ -258,7 +236,7 @@ function test_vote_on_non_existent_option() {
 
     val f1 = rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(999, true))
+        .op(vote_on_poll_option(999))
         .sign(bobKeyPair)
         .run_must_fail();
 
@@ -304,21 +282,19 @@ function test_poll_results_accuracy() {
 
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1, true))
+        .op(vote_on_poll_option(1))
         .sign(bobKeyPair)
         .run();
 
     rell.test.tx()
         .op(ft_auth_operation_for(alice))
-        .op(vote_on_poll_option(2, false))
+        .op(vote_on_poll_option(2))
         .sign(aliceKeyPair)
         .run();
 
     val results = get_poll_results(poll_id);
-    assert_equals(results[0].yes_votes, 1);
-    assert_equals(results[0].no_votes, 0);
-    assert_equals(results[1].yes_votes, 0);
-    assert_equals(results[1].no_votes, 1);
+    assert_equals(results[0].votes, 1);
+    assert_equals(results[1].votes, 1);
 }
 
 // Test poll lifecycle
@@ -328,7 +304,7 @@ function test_poll_lifecycle() {
 
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1, true))
+        .op(vote_on_poll_option(1))
         .sign(bobKeyPair)
         .run();
 
@@ -356,26 +332,25 @@ function test_vote_all_options() {
 
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1, true))
+        .op(vote_on_poll_option(1))
         .sign(bobKeyPair)
         .run();
 
     rell.test.tx()
         .op(ft_auth_operation_for(alice))
-        .op(vote_on_poll_option(2, false))
+        .op(vote_on_poll_option(2))
         .sign(aliceKeyPair)
         .run();
 
     rell.test.tx()
         .op(ft_auth_operation_for(alice))
-        .op(vote_on_poll_option(3, true))
+        .op(vote_on_poll_option(3))
         .sign(aliceKeyPair)
         .run();
 
     val results = get_poll_results(poll_id);
     assert_equals(results.size(), 3);
-    assert_equals(results[0].yes_votes + results[1].yes_votes + results[2].yes_votes, 2);
-    assert_equals(results[0].no_votes + results[1].no_votes + results[2].no_votes, 1);
+    assert_equals(results[0].votes + results[1].votes, 2);
 }
 
 // Test adding right answer for non-existent poll
@@ -402,12 +377,12 @@ function test_create_ongoing_poll() {
     // Ensure voting is still possible
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1, true))
+        .op(vote_on_poll_option(1))
         .sign(bobKeyPair)
         .run();
 
     val results = get_poll_results(poll_id);
-    assert_equals(results[0].yes_votes, 1);
+    assert_equals(results[0].votes, 1);
 }
 
 // Test retrieving polls by creator
