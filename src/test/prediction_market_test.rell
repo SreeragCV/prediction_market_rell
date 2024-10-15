@@ -145,12 +145,12 @@ function test_create_poll_failure_no_title() {
 function test_create_poll_success() {
     val title = "Test Poll";
     val options = ["First Creation Option1", "First Creation Option2"];
-    val poll_end = 86400;
+    val poll_end = 8640000000000000000;
     val title_image = "http://example.com/image.jpg";
 
     val title2 = "Test Poll2";
     val options2 = ["Second Creation Option1", "Second Creation Option1"];
-    val poll_end2 = 86400;
+    val poll_end2 = 864000000000000000;
     val title_image2 = "http://example2.com/image.jpg";
 
     test_add_user();
@@ -209,7 +209,7 @@ function test_vote_on_poll_option() {
 
 function test_double_voting() {
     test_add_user();
-    val poll_id = create_test_poll(alice, "Double Voting Test", ["Option 1", "Option 2"], 86400);
+    val poll_id = create_test_poll(alice, "Double Voting Test", ["Option 1", "Option 2"], 864008640086400864);
     
     // First vote (should succeed)
     rell.test.tx()

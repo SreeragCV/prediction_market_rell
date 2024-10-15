@@ -93,8 +93,12 @@ operation create_poll(title: text, options: list<text>, poll_end: timestamp, tit
 operation vote_on_poll_option(option_id: integer) {
     require(poll_option @? { .id == option_id } != null, "Poll option does not exist");
 
+    val poll_id = poll_option @ { .id == option_id }.poll_id;
 
-    var poll_id = poll_option @ { .id == option_id }.poll_id;
+    var poll_data = poll @ { .id == poll_id };
+
+    require(op_context.last_block_time < poll_data.poll_end, "Poll has ended");
+
     val account = auth.authenticate();
 
     val existing_vote = vote @? { .option_id == option_id, .voter == account, .poll_id == poll_id };
