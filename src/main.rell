@@ -70,8 +70,6 @@ operation create_poll(title: text, options: list<text>, poll_end: timestamp, tit
     require(options.size() < 10, "Only can have max 10 options");
     require(poll_end > 0, "Poll end-time should be greater than 0");
 
-    
-
     val account = auth.authenticate();
 
     val new_poll_id = get_next_poll_id();

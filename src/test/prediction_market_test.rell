@@ -371,16 +371,14 @@ function test_create_poll_invalid_image_url() {
 // Test retrieving polls by creator
 function test_get_polls_by_creator() {
     test_add_user();
-    create_test_poll(alice, "Alice's Poll", ["Option 1", "Option 2"], 86400);
     create_test_poll_bob(bob, "Bob's Poll", ["Option A", "Option B"], 86400);
+    create_test_poll(alice, "Alice's Poll", ["Option 1", "Option 2"], 86400);
 
-    var ac = user @* {  }(.account);
+    var users = user @* {  }(.account);
 
-    print(ac[0].id,"this ");
-    // val alice_polls = poll @ { .creator == acc.account @ { .id == alice } };
-    //val bob_polls = poll @ { .creator == acc.account @ { .id == bob } };
+    val bob_poll = poll @ { .creator == users[0]};
+    val alice_poll = poll @ { .creator == users[1]};
     
-    
-    //assert_equals(alice_polls.title, "Alice's Poll");
-    //assert_equals(bob_polls.title, "Bob's Poll");
+    assert_equals(bob_poll.title, "Bob's Poll");
+    assert_equals(alice_poll.title, "Alice's Poll");
 }
