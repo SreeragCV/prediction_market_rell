@@ -68,6 +68,9 @@ operation create_poll(title: text, options: list<text>, poll_end: timestamp, tit
     require(title.size() < 100, "title cannot be 100 character long");
     require(options.size() > 0, "At least one option is required");
     require(options.size() < 10, "Only can have max 10 options");
+    require(poll_end > 0, "Poll end-time should be greater than 0");
+
+    
 
     val account = auth.authenticate();
 
@@ -76,7 +79,7 @@ operation create_poll(title: text, options: list<text>, poll_end: timestamp, tit
         id = new_poll_id,
         creator = account,
         title = title,
-        title_image = title_image,
+        title_image = parse_icon_url(title_image),
         poll_end = poll_end,
         created_at = op_context.last_block_time,
         right_answer = 0,
@@ -204,4 +207,13 @@ function distribute_rewards(poll_id: integer, correct_option_id: integer, accoun
         update user @ { .account == winning_bet.bettor } ( balance += payout );
         Unsafe.transfer(account, winning_bet.bettor, asst, payout);
     }
+}
+
+function parse_icon_url(icon_url: text): text {
+    val trimmed_icon_url = icon_url.trim();
+    require(
+        (trimmed_icon_url == "") or (trimmed_icon_url.size() <= 2048 and trimmed_icon_url.matches('^\\S+:\\/\\/[^\\s$.?#].[^\\s]*$')),
+        "Invalid URL for icon"
+    );
+    return trimmed_icon_url;
 }

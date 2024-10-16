@@ -246,7 +246,7 @@ function test_vote_on_non_existent_option() {
 //Test adding right answer
 function test_add_right_answer() {
     test_add_user();
-    val poll_id = create_test_poll(alice, "Right Answer Test", ["Option 1", "Option 2"], 0);
+    val poll_id = create_test_poll(alice, "Right Answer Test", ["Option 1", "Option 2"], 1);
 
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
@@ -278,7 +278,7 @@ function test_create_poll_max_options() {
 // Test poll results accuracy
 function test_poll_results_accuracy() {
     test_add_user();
-    val poll_id = create_test_poll(alice, "Results Accuracy Test", ["Option 1", "Option 2"], 86400);
+    val poll_id = create_test_poll(alice, "Results Accuracy Test", ["Option 1", "Option 2"], 1760575954000);
 
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
@@ -297,28 +297,6 @@ function test_poll_results_accuracy() {
     assert_equals(results[1].votes, 1);
 }
 
-// Test poll lifecycle
-function test_poll_lifecycle() {
-    test_add_user();
-    val poll_id = create_test_poll(alice, "Lifecycle Test", ["Option 1", "Option 2"], 0);
-
-    rell.test.tx()
-        .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1))
-        .sign(bobKeyPair)
-        .run();
-
-    rell.test.tx()
-        .op(ft_auth_operation_for(alice))
-        .op(add_right_answer(poll_id, 1))
-        .sign(aliceKeyPair)
-        .run();
-
-    val updated_poll = poll @ { .id == poll_id };
-    assert_equals(updated_poll.is_resolved, true);
-    assert_equals(updated_poll.right_answer, 1);
-}
-
 //Test get_all_polls with no polls
 function test_get_all_polls_empty() {
     val polls = get_all_polls();
@@ -328,7 +306,7 @@ function test_get_all_polls_empty() {
 // Test voting on all options of a poll
 function test_vote_all_options() {
     test_add_user();
-    val poll_id = create_test_poll(alice, "Vote All Options Test", ["Option 1", "Option 2", "Option 3"], 86400);
+    val poll_id = create_test_poll(alice, "Vote All Options Test", ["Option 1", "Option 2", "Option 3"], 1760575954000);
 
     rell.test.tx()
         .op(ft_auth_operation_for(bob))
@@ -367,22 +345,27 @@ function test_add_right_answer_non_existent_poll() {
 }
 
 // Test creating a poll with no end time (ongoing poll)
-function test_create_ongoing_poll() {
+function test_create_poll_with_no_end_time() {
     test_add_user();
-    val poll_id = create_test_poll(alice, "Ongoing Poll Test", ["Option 1", "Option 2"], 0);
-
-    val created_poll = poll @ { .id == poll_id };
-    assert_equals(created_poll.poll_end, 0);
-    
-    // Ensure voting is still possible
-    rell.test.tx()
+    val result = rell.test.tx()
         .op(ft_auth_operation_for(bob))
-        .op(vote_on_poll_option(1))
+        .op(create_poll("Ongoing Poll Test", ["Option 1", "Option 2"], 0, "http://example.com/image.jpg"))
         .sign(bobKeyPair)
-        .run();
+        .run_must_fail();
 
-    val results = get_poll_results(poll_id);
-    assert_equals(results[0].votes, 1);
+    assert_true(result.message.contains("Poll end-time should be greater than 0"));
+}
+
+// Creating Poll - Invalid image URL 
+function test_create_poll_invalid_image_url() {
+    test_add_user();
+    val result = rell.test.tx()
+        .op(ft_auth_operation_for(bob))
+        .op(create_poll("Ongoing Poll Test", ["Option 1", "Option 2"], 1, "invalid url"))
+        .sign(bobKeyPair)
+        .run_must_fail();
+
+    assert_true(result.message.contains("Invalid URL for icon"));
 }
 
 // Test retrieving polls by creator
